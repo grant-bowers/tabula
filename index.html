@@ -39,7 +39,7 @@
   .token.related { outline:1px dashed #555; }
   .token.in-span .word { text-decoration:underline; text-decoration-style:dotted; text-underline-offset:4px; }
   svg.arcs { position:absolute; top:0; left:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
-  .arc { fill:none; stroke:#444; stroke-width:1.3; }
+  .arc { fill:none; stroke:#444; stroke-width:1; }
   .arc.active { stroke:#000; stroke-width:2.5; }
   .arc-label { font:11px system-ui,sans-serif; fill:#333; }
   .arc-hit { fill:none; stroke:transparent; stroke-width:12; pointer-events:stroke; cursor:pointer; }
@@ -108,7 +108,6 @@
           <tbody id="relationRows"></tbody>
         </table>
       </div>
-      <p class="muted">Based broadly on Universal Dependencies conventions, with Latin-study notes. Labels and analyses may vary by project.</p>
     </div>
   </aside>
 
@@ -201,8 +200,6 @@
       <div id="studyAnswer" class="notice hidden"></div>
     </div>
     <div class="panel">
-      <h2>Legend</h2>
-      <div class="muted">Solid curved lines = word dependencies. Dotted underlines = tokens in a construction. Click any token to highlight its linked words.</div>
     </div>
   </aside>
 </main>
