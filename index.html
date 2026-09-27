@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latin Annotator</title>
+<style>
+  :root { font: 14px/1.4 system-ui, sans-serif; color: #111; background: #fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { padding: 4px 8px; border: 1px solid #888; background: #f7f7f7; border-radius: 2px; cursor: pointer; }
+  button:hover { background: #eee; }
+  input, select, textarea { border: 1px solid #aaa; border-radius: 2px; padding: 4px; background: white; width: 100%; }
+  header { display:flex; align-items:center; gap:12px; padding:8px 10px; border-bottom:1px solid #999; }
+  header strong { font-size:16px; font-weight:600; margin-right: auto; }
+  #status { color:#555; font-size:12px; }
+  main { display:grid; grid-template-columns:minmax(220px, 28%) minmax(360px, 1fr) minmax(240px, 25%); min-height:calc(100vh - 43px); }
+  aside, section { min-width:0; padding:9px; border-right:1px solid #bbb; }
+  aside:last-child { border-right:0; }
+  h2 { font-size:14px; font-weight:600; margin:0 0 8px; }
+  h3 { font-size:13px; font-weight:600; margin:12px 0 5px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+  .tabs { display:flex; gap:10px; border-bottom:1px solid #aaa; margin:-1px 0 10px; }
+  .tab { padding:5px 3px; border:0; border-bottom:2px solid transparent; background:white; border-radius:0; }
+  .tab.active { border-bottom-color:#111; font-weight:600; }
+  .field { margin:7px 0; }
+  .field label { display:block; font-size:12px; margin-bottom:3px; color:#333; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  #xml { width:100%; min-height:65vh; resize:vertical; font:12px/1.45 ui-monospace, monospace; white-space:pre; }
+  #reader { min-height:50vh; overflow:auto; border-bottom:1px solid #aaa; padding-bottom:12px; }
+  #sentenceView { position:relative; min-height:210px; padding:26px 4px 6px; }
+  .sentence { position:relative; display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px 7px; padding:24px 5px 16px; margin-bottom:12px; }
+  .token { position:relative; min-width:22px; text-align:center; padding:4px 3px 2px; border:1px solid transparent; cursor:pointer; border-radius:2px; }
+  .line-break { flex-basis:100%; width:100%; height:0; padding:0; margin:0; border:0; }
+  .token .word { font:20px/1.25 Georgia, serif; white-space:pre; }
+  .token .tag { display:block; margin-top:3px; font-size:10px; color:#555; min-height:14px; }
+  .token.selected { border-color:#111; background:#eee; }
+  .token.related { outline:1px dashed #555; }
+  .token.in-span .word { text-decoration:underline; text-decoration-style:dotted; text-underline-offset:4px; }
+  svg.arcs { position:absolute; top:0; left:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+  .arc { fill:none; stroke:#444; stroke-width:1.3; }
+  .arc.active { stroke:#000; stroke-width:2.5; }
+  .arc-label { font:11px system-ui,sans-serif; fill:#333; }
+  .arc-hit { fill:none; stroke:transparent; stroke-width:12; pointer-events:stroke; cursor:pointer; }
+  .muted { color:#666; font-size:12px; }
+  .panel { border-top:1px solid #aaa; padding-top:8px; margin-top:8px; }
+  .list { width:100%; border-collapse:collapse; font-size:12px; }
+  .list td,.list th { text-align:left; border-bottom:1px solid #ddd; padding:4px; vertical-align:top; }
+  .list tr { cursor:pointer; }
+  .list tr:hover { background:#f2f2f2; }
+  .checks { display:flex; flex-wrap:wrap; gap:10px; font-size:12px; margin-bottom:8px; }
+  .checks label { display:flex; gap:4px; align-items:center; }
+  .checks input { width:auto; }
+  .notice { padding:5px; background:#f4f4f4; font-size:12px; margin:6px 0; }
+  .hidden { display:none !important; }
+  .span-item { border:1px solid #bbb; padding:6px; margin:5px 0; }
+  .bottom-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+  @media (max-width: 900px) {
+    main { grid-template-columns:1fr; }
+    aside, section { border-right:0; border-bottom:1px solid #bbb; }
+    #xml { min-height:250px; }
+    #reader { min-height:300px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <strong>Latin Annotator</strong>
+  <span id="filename">sample.xml</span>
+  <span id="status" role="status">Ready</span>
+  <button id="newBtn">New</button>
+  <button id="openBtn">Open XML</button>
+  <input id="fileInput" type="file" accept=".xml,.txt,text/xml,application/xml" class="hidden">
+  <button id="saveLocalBtn">Save</button>
+  <button id="saveBtn">Export XML</button>
+</header>
+<main>
+  <aside>
+    <div class="tabs">
+      <button class="tab active" data-tab="sourceTab">XML</button>
+      <button class="tab" data-tab="helpTab">Help</button>
+      <button class="tab" data-tab="relationsTab">Relations</button>
+    </div>
+    <div id="sourceTab">
+      <h2>XML source</h2>
+      <div class="toolbar">
+        <button id="applyXml">Load XML into reader</button>
+        <button id="copyXml">Copy XML</button>
+      </div>
+      <textarea id="xml" spellcheck="false" aria-label="XML source"></textarea>
+      <div class="muted">The XML is the saved document. After editing the source, choose “Load XML into reader”.</div>
+    </div>
+    <div id="helpTab" class="hidden">
+      <h2>Quick help</h2>
+      <p>Click a token to inspect or edit it. Choose a head and relation to connect words, even when they are far apart (hyperbaton).</p>
+      <p>Use “Add construction” to annotate a multiword span such as an ablative absolute or indirect statement.</p>
+      <p>Use “Export XML” to save the current annotations as a local .xml file.</p>
+      <p>Token IDs are stable identifiers used by dependency links and construction spans.</p>
+    </div>
+    <div id="relationsTab" class="hidden">
+      <h2>Relation reference</h2>
+      <p class="muted">Common dependency labels. These describe a word's syntactic relation to its head; construction types belong in the Constructions panel.</p>
+      <input id="relationSearch" placeholder="Filter labels or meanings…" aria-label="Filter relations">
+      <div style="max-height:65vh; overflow:auto; margin-top:6px">
+        <table class="list">
+          <thead><tr><th>Label</th><th>Meaning</th></tr></thead>
+          <tbody id="relationRows"></tbody>
+        </table>
+      </div>
+      <p class="muted">Based broadly on Universal Dependencies conventions, with Latin-study notes. Labels and analyses may vary by project.</p>
+    </div>
+  </aside>
+
+  <section>
+    <div class="tabs">
+      <button class="tab active" data-tab="readerTab">Reader</button>
+      <button class="tab" data-tab="depsTab">Dependencies</button>
+      <button class="tab" data-tab="spansTab">Constructions</button>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="showArcs" checked> Dependencies</label>
+      <label><input type="checkbox" id="showTags" checked> POS tags</label>
+      <label><input type="checkbox" id="showSpans" checked> Construction spans</label>
+    </div>
+    <div id="readerTab">
+      <h2>Latin text</h2>
+      <div class="field">
+        <label for="latinInput">Write or paste Latin freely</label>
+        <textarea id="latinInput" rows="3" placeholder="Type or paste a Latin passage here…"></textarea>
+        <div class="toolbar" style="margin-top:5px">
+          <button id="tokenizeBtn">Use this text</button>
+          <span class="muted">Splits the passage into editable word tokens and punctuation.</span>
+        </div>
+      </div>
+      <div id="reader"><div id="sentenceView"></div></div>
+      <div class="muted">Select a word to see its annotations. Select a connector to inspect a dependency. Long-distance relations are supported.</div>
+    </div>
+    <div id="depsTab" class="hidden">
+      <h2>Dependencies</h2>
+      <div class="toolbar"><button id="newDep">Add dependency</button><button id="deleteDep">Delete selected dependency</button></div>
+      <table class="list"><thead><tr><th>Dependent</th><th>Relation</th><th>Head</th></tr></thead><tbody id="depRows"></tbody></table>
+    </div>
+    <div id="spansTab" class="hidden">
+      <h2>Phrase / clause constructions</h2>
+      <div class="toolbar"><button id="addSpan">Add construction</button><button id="deleteSpan">Delete selected construction</button></div>
+      <div id="spanList"></div>
+    </div>
+    <div class="panel">
+      <h2 id="editorHeading">Selected word</h2>
+      <div id="wordEditor">
+        <div class="field"><label for="tokenPick">Token</label><select id="tokenPick"></select></div>
+        <div class="field"><label for="surface">Surface form</label><input id="surface"></div>
+        <div class="field"><label for="lemma">Lemma</label><input id="lemma"></div>
+        <div class="two">
+          <div class="field"><label for="pos">Part of speech</label><select id="pos"><option value="">—</option><option>noun</option><option>adjective</option><option>pronoun</option><option>verb</option><option>participle</option><option>adverb</option><option>preposition</option><option>conjunction</option><option>interjection</option><option>numeral</option><option>particle</option></select></div>
+          <div class="field"><label for="func">Syntactic function</label><input id="func" placeholder="e.g. subject"></div>
+        </div>
+        <div class="two">
+          <div class="field"><label for="case">Case</label><select id="case"><option value="">—</option><option>nominative</option><option>genitive</option><option>dative</option><option>accusative</option><option>ablative</option><option>vocative</option></select></div>
+          <div class="field"><label for="number">Number</label><select id="number"><option value="">—</option><option>singular</option><option>plural</option></select></div>
+        </div>
+        <div class="two">
+          <div class="field"><label for="gender">Gender</label><select id="gender"><option value="">—</option><option>masculine</option><option>feminine</option><option>neuter</option></select></div>
+          <div class="field"><label for="tense">Tense</label><select id="tense"><option value="">—</option><option>present</option><option>imperfect</option><option>future</option><option>perfect</option><option>pluperfect</option><option>future-perfect</option></select></div>
+        </div>
+        <div class="two">
+          <div class="field"><label for="mood">Mood</label><select id="mood"><option value="">—</option><option>indicative</option><option>subjunctive</option><option>imperative</option><option>infinitive</option><option>participle</option><option>gerund</option><option>gerundive</option><option>supine</option></select></div>
+          <div class="field"><label for="voice">Voice</label><select id="voice"><option value="">—</option><option>active</option><option>passive</option><option>deponent</option></select></div>
+        </div>
+        <div class="two">
+          <div class="field"><label for="person">Person</label><select id="person"><option value="">—</option><option>1</option><option>2</option><option>3</option></select></div>
+          <div class="field"><label for="head">Head / modified word</label><select id="head"></select></div>
+        </div>
+        <div class="field"><label for="relation">Relation to head</label><input id="relation" placeholder="e.g. amod, nsubj, obj, agrees-with"></div>
+        <div class="field"><label for="notes">Study note / translation</label><textarea id="notes" rows="2"></textarea></div>
+        <div class="bottom-actions"><button id="applyWord">Apply word edits</button><button id="clearWord">Clear word metadata</button></div>
+      </div>
+      <div id="depEditor" class="hidden">
+        <div class="field"><label for="depDependent">Dependent word</label><select id="depDependent"></select></div>
+        <div class="field"><label for="depRelation">Relation</label><input id="depRelation" placeholder="e.g. modifies, nsubj, obj"></div>
+        <div class="field"><label for="depHead">Head / related word</label><select id="depHead"></select></div>
+        <div class="bottom-actions"><button id="applyDep">Save dependency</button><button id="cancelDep">Cancel</button></div>
+      </div>
+      <div id="spanEditor" class="hidden">
+        <div class="field"><label for="spanType">Construction type</label><input id="spanType" placeholder="e.g. ablative-absolute"></div>
+        <div class="field"><label for="spanTargets">Tokens in span (select multiple)</label><select id="spanTargets" multiple size="5"></select><div class="muted">Use Ctrl/Cmd-click to select non-adjacent words if needed.</div></div>
+        <div class="field"><label for="spanNote">Explanation / translation</label><textarea id="spanNote" rows="2"></textarea></div>
+        <div class="bottom-actions"><button id="applySpan">Save construction</button><button id="cancelSpan">Cancel</button></div>
+      </div>
+    </div>
+  </section>
+
+  <aside>
+    <h2>Selected item</h2>
+    <div id="quickInfo" class="muted">Select a word or dependency.</div>
+    <div class="panel">
+      <h2>Study mode</h2>
+      <label><input type="checkbox" id="studyMode"> Hide annotations</label>
+      <div class="field"><label for="reveal">Reveal</label><button id="reveal">Show selected word's answers</button></div>
+      <div id="studyAnswer" class="notice hidden"></div>
+    </div>
+    <div class="panel">
+      <h2>Legend</h2>
+      <div class="muted">Solid curved lines = word dependencies. Dotted underlines = tokens in a construction. Click any token to highlight its linked words.</div>
+    </div>
+  </aside>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const fields = ["surface","lemma","pos","func","case","number","gender","tense","mood","voice","person","head","relation","notes"];
+let doc = {tokens:[], spans:[], sentenceId:"s1"};
+let selectedId = null, selectedDep = null, selectedSpan = null, editingDep = null, editingSpan = null;
+let revealed = false;
+
+const sample = `<?xml version="1.0" encoding="UTF-8"?>
+<text xmlns="urn:latin-annotation" xml:id="sample">
+  <sentence xml:id="s1">
+    <w xml:id="w1" lemma="magnus" pos="adjective" case="acc" number="pl" gender="f">Magnas</w>
+    <w xml:id="w2" lemma="Caesar" pos="noun" case="nom" number="sg" gender="m">Caesar</w>
+    <w xml:id="w3" lemma="in" pos="preposition">in</w>
+    <w xml:id="w4" lemma="Gallia" pos="noun" case="abl" number="sg" gender="f">Gallia</w>
+    <w xml:id="w5" lemma="gero" pos="verb" tense="perfect" mood="indicative" voice="active" person="3" number="sg">gessit</w>
+    <w xml:id="w6" lemma="pugna" pos="noun" case="acc" number="pl" gender="f">pugnas</w>
+    <pc xml:id="p1">,</pc>
+    <w xml:id="w7" lemma="urbs" pos="noun" case="abl" number="sg" gender="f">urbe</w>
+    <w xml:id="w8" lemma="capio" pos="participle" case="abl" number="sg" gender="f" tense="perfect" voice="passive">capta</w>
+    <pc xml:id="p2">.</pc>
+  </sentence>
+  <dependencies>
+    <dep dependent="w1" relation="amod" head="w6"/>
+    <dep dependent="w2" relation="nsubj" head="w5"/>
+    <dep dependent="w4" relation="obl" head="w5"/>
+    <dep dependent="w5" relation="root" head=""/>
+    <dep dependent="w6" relation="obj" head="w5"/>
+    <dep dependent="w7" relation="obl:abs" head="w8"/>
+  </dependencies>
+  <span xml:id="c1" type="ablative-absolute" targets="w7 w8" note="Urbe capta: “with/after the city having been captured.”"/>
+</text>`;
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&apos;"}[c]));}
+function attr(el,name){return el.getAttribute(name)||"";}
+function parseXml(xml){
+  const parser=new DOMParser(), x=parser.parseFromString(xml,"application/xml");
+  if(x.querySelector("parsererror")) throw new Error("XML parse error: "+x.querySelector("parsererror").textContent);
+  const tokenEls=[...x.getElementsByTagNameNS("*","w")];
+  const toks=tokenEls.map((e,i)=>({id:e.getAttribute("xml:id")||e.getAttribute("id")||"w"+(i+1), text:e.textContent, lemma:attr(e,"lemma"), pos:attr(e,"pos"), func:attr(e,"func"), case:attr(e,"case"), number:attr(e,"number"), gender:attr(e,"gender"), tense:attr(e,"tense"), mood:attr(e,"mood"), voice:attr(e,"voice"), person:attr(e,"person"), head:attr(e,"head"), relation:attr(e,"relation"), notes:attr(e,"notes"), punctuation:false}));
+  const pcs=[...x.getElementsByTagNameNS("*","pc")].map(e=>({id:e.getAttribute("xml:id")||"p"+Math.random().toString(36).slice(2,7),text:e.textContent, punctuation:true}));
+  // Preserve punctuation positions by reading sentence children in order.
+  let ordered=[];
+  const sentence=x.getElementsByTagNameNS("*","sentence")[0];
+  if(sentence) for(const e of sentence.children){
+    if(e.localName==="w"){const t=toks.find(t=>t.id===(e.getAttribute("xml:id")||e.getAttribute("id"))); if(t) ordered.push(t);}
+    else if(e.localName==="pc") ordered.push(pcs.shift()||{id:"p"+ordered.length,text:e.textContent,punctuation:true});
+    else if(e.localName==="lb") ordered.push({id:e.getAttribute("xml:id")||"lb"+(ordered.length+1),text:"",lineBreak:true});
+  }
+  const deps=[...x.getElementsByTagNameNS("*","dep")].map(e=>({dependent:attr(e,"dependent"),relation:attr(e,"relation"),head:attr(e,"head")}));
+  // Older documents may store word-to-word relations directly on words.
+  for(const e of tokenEls){const id=e.getAttribute("xml:id")||e.getAttribute("id"); if(attr(e,"head")&&!deps.some(d=>d.dependent===id)) deps.push({dependent:id,relation:attr(e,"relation"),head:attr(e,"head")});}
+  const spans=[...x.getElementsByTagNameNS("*","span")].map((e,i)=>({id:e.getAttribute("xml:id")||"c"+(i+1),type:attr(e,"type"),targets:attr(e,"targets").split(/\s+/).filter(Boolean),note:attr(e,"note")}));
+  return {tokens:ordered.length?ordered:toks, deps, spans, sentenceId:sentence?.getAttribute("xml:id")||"s1"};
+}
+function serialize(){
+  const escAttr=s=>esc(s);
+  const tokenXml=doc.tokens.map(t=>t.lineBreak?`    <lb xml:id="${escAttr(t.id)}"/>`:t.punctuation?`    <pc xml:id="${escAttr(t.id)}">${esc(t.text)}</pc>`:
+    `    <w xml:id="${escAttr(t.id)}"${["lemma","pos","func","case","number","gender","tense","mood","voice","person","head","relation","notes"].map(k=>t[k]?` ${k}="${escAttr(t[k])}"`:"").join("")}>${esc(t.text)}</w>`).join("\n");
+  const deps=doc.deps.map(d=>`    <dep dependent="${escAttr(d.dependent)}" relation="${escAttr(d.relation)}" head="${escAttr(d.head)}"/>`).join("\n");
+  const spans=doc.spans.map(s=>`  <span xml:id="${escAttr(s.id)}" type="${escAttr(s.type)}" targets="${escAttr(s.targets.join(" "))}" note="${escAttr(s.note)}"/>`).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<text xmlns="urn:latin-annotation" xml:id="document">\n  <sentence xml:id="${escAttr(doc.sentenceId)}">\n${tokenXml}\n  </sentence>\n  <dependencies>\n${deps}\n  </dependencies>\n${spans}\n</text>`;
+}
+function setStatus(s){$("status").textContent=s;}
+function tokenById(id){return doc.tokens.find(t=>t.id===id);}
+function plainTokens(){return doc.tokens.filter(t=>!t.punctuation&&!t.lineBreak);}
+function textFromTokens(){
+  let out="";
+  for(const t of doc.tokens){
+    if(t.lineBreak){out=out.replace(/[ \t]+$/,"")+"\n";continue;}
+    if(t.punctuation){out=out.replace(/[ \t]+$/,"")+t.text;continue;}
+    if(out && !/[\s]$/.test(out)) out+=" ";
+    out+=t.text;
+  }
+  return out;
+}
+function selectedToken(){return tokenById(selectedId)||plainTokens()[0];}
+function updateXml(){ $("xml").value=serialize(); }
+function populateSelect(el, includeNone=false, multi=false){
+  el.innerHTML=(includeNone?'<option value="">— none —</option>':"")+plainTokens().map(t=>`<option value="${esc(t.id)}">${esc(t.text)} (${esc(t.id)})</option>`).join("");
+}
+function render(){
+  const container=$("sentenceView"); container.innerHTML="";
+  const sentence=document.createElement("div"); sentence.className="sentence"; sentence.id="sentence";
+  // Reserve a lane above the words for the dependency arcs.
+  sentence.style.paddingTop = $("showArcs").checked && doc.deps.some(d=>d.head) ? "125px" : "24px";
+  for(const t of doc.tokens){
+    if(t.lineBreak) {
+      const br=document.createElement("div"); br.className="line-break"; br.setAttribute("aria-label","line break"); sentence.appendChild(br); continue;
+    }
+    const el=document.createElement("div"); el.className="token"; el.dataset.id=t.id;
+    if(t.id===selectedId)el.classList.add("selected");
+    const related=doc.deps.filter(d=>d.dependent===selectedId||d.head===selectedId).some(d=>d.dependent===t.id||d.head===t.id);
+    if(selectedId&&related&&t.id!==selectedId)el.classList.add("related");
+    if(doc.spans.some(s=>s.targets.includes(t.id))&&$("showSpans").checked)el.classList.add("in-span");
+    el.innerHTML=`<span class="word">${esc(t.text)}</span><span class="tag">${$("showTags").checked&&!t.punctuation?esc(t.pos||"—"):""}</span>`;
+    el.addEventListener("click",()=>{if(t.punctuation)return;selectedId=t.id;selectedDep=null;selectedSpan=null;fillWord();render();showQuickInfo();});
+    sentence.appendChild(el);
+  }
+  container.appendChild(sentence);
+  requestAnimationFrame(drawArcs);
+  renderDeps();renderSpans();populateSelect($("tokenPick"));populateSelect($("head"),true);populateSelect($("depDependent"));populateSelect($("depHead"),true);populateSelect($("spanTargets"));
+  $("tokenPick").value=selectedId||"";
+}
+function drawArcs(){
+  const sentence=$("sentence"); if(!sentence)return;
+  sentence.querySelectorAll("svg").forEach(e=>e.remove());
+  if(!$("showArcs").checked)return;
+  const sr=sentence.getBoundingClientRect();
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("class","arcs");
+  svg.setAttribute("viewBox",`0 0 ${Math.max(1,sr.width)} ${Math.max(1,sr.height)}`);svg.setAttribute("preserveAspectRatio","none");
+  const positions={};sentence.querySelectorAll(".token").forEach(el=>{const r=el.getBoundingClientRect();positions[el.dataset.id]={x:r.left-sr.left+r.width/2,y:r.top-sr.top};});
+  doc.deps.forEach((d,i)=>{
+    if(!d.head||!positions[d.head]||!positions[d.dependent])return;
+    const a=positions[d.head],b=positions[d.dependent];
+    // The arch must sit above both endpoint tokens. Increase its height for
+    // long-distance links; never use a fixed level that can fall through text.
+    const distance=Math.abs(a.x-b.x);
+    const baseY=Math.min(a.y,b.y)-9;
+    const lift=Math.min(105, 24 + distance*0.12 + (i%4)*12);
+    const archY=Math.max(2, baseY-lift);
+    const mid=(a.x+b.x)/2;
+    const path=`M ${a.x} ${a.y+1} C ${a.x} ${archY}, ${b.x} ${archY}, ${b.x} ${b.y+1}`;
+    const p=document.createElementNS(svg.namespaceURI,"path");p.setAttribute("d",path);p.setAttribute("class","arc"+(selectedDep===i?" active":""));svg.appendChild(p);
+    const hit=document.createElementNS(svg.namespaceURI,"path");hit.setAttribute("d",path);hit.setAttribute("class","arc-hit");hit.style.pointerEvents="stroke";hit.addEventListener("click",()=>{selectedDep=i;selectedId=null;editingDep=i;showDepEditor(d);showQuickInfo();render();});svg.appendChild(hit);
+    const label=document.createElementNS(svg.namespaceURI,"text");label.setAttribute("x",mid);label.setAttribute("y",Math.max(10,archY-3));label.setAttribute("text-anchor","middle");label.setAttribute("class","arc-label");label.textContent=d.relation;svg.appendChild(label);
+  });
+  sentence.appendChild(svg);
+}
+function fillWord(){
+  const t=selectedToken();if(!t)return;
+  fields.forEach(k=>{if($(k))$(k).value=t[k]||"";});
+  $("surface").value=t.text;
+  $("editorHeading").textContent="Selected word: "+t.text;
+  $("wordEditor").classList.remove("hidden");$("depEditor").classList.add("hidden");$("spanEditor").classList.add("hidden");
+  populateSelect($("head"),true);$("head").value=t.head||"";
+}
+function showQuickInfo(){
+  if(selectedDep!==null&&doc.deps[selectedDep]){const d=doc.deps[selectedDep];$("quickInfo").innerHTML=`<b>Dependency</b><br>Dependent: ${esc(tokenById(d.dependent)?.text||d.dependent)}<br>Relation: ${esc(d.relation)}<br>Head: ${esc(tokenById(d.head)?.text||"—")}`;return;}
+  if(selectedSpan){const s=doc.spans.find(x=>x.id===selectedSpan);if(s){$("quickInfo").innerHTML=`<b>${esc(s.type)}</b><br>Span: ${s.targets.map(id=>esc(tokenById(id)?.text||id)).join(" ")}<br>${esc(s.note)}`;return;}}
+  const t=selectedToken();if(!t){$("quickInfo").textContent="Select a word or dependency.";return;}
+  const deps=doc.deps.filter(d=>d.dependent===t.id||d.head===t.id);
+  $("quickInfo").innerHTML=`<b>${esc(t.text)}</b> (${esc(t.id)})<br>Lemma: ${esc(t.lemma||"—")}<br>POS: ${esc(t.pos||"—")}<br>Morphology: ${["case","number","gender","tense","mood","voice","person"].filter(k=>t[k]).map(k=>k+": "+t[k]).join(", ")||"—"}<br>Function: ${esc(t.func||"—")}<br>Relations: ${deps.map(d=>`${esc(d.relation)}: ${esc(tokenById(d.dependent===t.id?d.head:d.dependent)?.text||"root")}`).join("; ")||"—"}`;
+}
+function renderDeps(){
+  $("depRows").innerHTML=doc.deps.map((d,i)=>`<tr data-i="${i}"><td>${esc(tokenById(d.dependent)?.text||d.dependent)}</td><td>${esc(d.relation)}</td><td>${esc(tokenById(d.head)?.text||"—")}</td></tr>`).join("");
+  [...$("depRows").querySelectorAll("tr")].forEach(tr=>tr.onclick=()=>{selectedDep=+tr.dataset.i;editingDep=selectedDep;selectedId=null;showDepEditor(doc.deps[selectedDep]);showQuickInfo();render();});
+}
+function renderSpans(){
+  $("spanList").innerHTML=doc.spans.map(s=>`<div class="span-item" data-id="${esc(s.id)}"><b>${esc(s.type||"unnamed construction")}</b><div>${s.targets.map(id=>esc(tokenById(id)?.text||id)).join(" ")}</div><div class="muted">${esc(s.note)}</div><button data-edit="${esc(s.id)}">Edit</button></div>`).join("")||'<div class="muted">No constructions yet.</div>';
+  $("spanList").querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{const s=doc.spans.find(x=>x.id===b.dataset.edit);selectedSpan=s.id;editingSpan=s.id;showSpanEditor(s);showQuickInfo();});
+}
+function showDepEditor(d={}){
+  $("wordEditor").classList.add("hidden");$("spanEditor").classList.add("hidden");$("depEditor").classList.remove("hidden");
+  populateSelect($("depDependent"));populateSelect($("depHead"),true);
+  $("depDependent").value=d.dependent||selectedId||plainTokens()[0]?.id||"";
+  $("depHead").value=d.head||"";$("depRelation").value=d.relation||"";
+}
+function showSpanEditor(s={}){
+  $("wordEditor").classList.add("hidden");$("depEditor").classList.add("hidden");$("spanEditor").classList.remove("hidden");
+  populateSelect($("spanTargets"));
+  $("spanType").value=s.type||"";$("spanNote").value=s.note||"";
+  [...$("spanTargets").options].forEach(o=>o.selected=(s.targets||[]).includes(o.value));
+}
+function applyWord(){
+  const t=selectedToken();if(!t)return;
+  t.text=$("surface").value;
+  ["lemma","pos","func","case","number","gender","tense","mood","voice","person","head","relation","notes"].forEach(k=>t[k]=$(k).value.trim());
+  // Keep the dependency list synchronized with word-level head/relation fields.
+  const idx=doc.deps.findIndex(d=>d.dependent===t.id);
+  if(t.head){const d={dependent:t.id,head:t.head,relation:t.relation||"dep"};if(idx>=0)doc.deps[idx]=d;else doc.deps.push(d);}
+  else if(idx>=0&&t.relation!=="root")doc.deps.splice(idx,1);
+  updateXml();render();fillWord();showQuickInfo();setStatus("Word updated");
+}
+function applyDep(){
+  const d={dependent:$("depDependent").value,head:$("depHead").value,relation:$("depRelation").value.trim()||"dep"};
+  if(!d.dependent||d.dependent===d.head){setStatus("Choose two different words");return;}
+  if(editingDep!==null&&doc.deps[editingDep])doc.deps[editingDep]=d;else doc.deps.push(d);
+  selectedDep=doc.deps.findIndex(x=>x.dependent===d.dependent&&x.head===d.head&&x.relation===d.relation);
+  const t=tokenById(d.dependent);if(t){t.head=d.head;t.relation=d.relation;}
+  editingDep=null;updateXml();render();showQuickInfo();setStatus("Dependency saved");
+}
+function applySpan(){
+  const s={id:editingSpan||"c"+(Date.now().toString(36)),type:$("spanType").value.trim()||"construction",targets:[...$("spanTargets").selectedOptions].map(o=>o.value),note:$("spanNote").value.trim()};
+  if(!s.targets.length){setStatus("Select at least one token");return;}
+  const idx=doc.spans.findIndex(x=>x.id===s.id);if(idx>=0)doc.spans[idx]=s;else doc.spans.push(s);
+  selectedSpan=s.id;editingSpan=null;updateXml();render();showQuickInfo();setStatus("Construction saved");
+}
+function loadXml(){
+  try{doc=parseXml($("xml").value);selectedId=plainTokens()[0]?.id||null;selectedDep=null;selectedSpan=null;updateXml();$("latinInput").value=textFromTokens();render();fillWord();showQuickInfo();setStatus("XML loaded");}
+  catch(e){setStatus(e.message);alert(e.message);}
+}
+function downloadXml(){
+  updateXml();const blob=new Blob([$("xml").value],{type:"application/xml;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=($("filename").textContent.replace(/\.xml$/i,"")||"latin-text")+".xml";a.click();URL.revokeObjectURL(url);setStatus("XML exported");
+}
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{
+  const group=b.parentElement;group.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");
+  const targets=group.querySelectorAll(".tab");targets.forEach(x=>$(x.dataset.tab)?.classList.add("hidden"));$(b.dataset.tab)?.classList.remove("hidden");
+}));
+$("applyXml").onclick=loadXml;$("saveBtn").onclick=downloadXml;
+$("saveLocalBtn").onclick=()=>{
+  try {
+    updateXml();
+    localStorage.setItem("latinAnnotatorXml", $("xml").value);
+    localStorage.setItem("latinAnnotatorFilename", $("filename").textContent);
+    setStatus("Saved in this browser");
+  } catch(e) { setStatus("Could not save locally: "+e.message); }
+};
+function tokenizeLatin(text) {
+  // Words may contain Latin letters, macrons, apostrophes, or internal hyphens.
+  const parts = [...text.matchAll(/\r\n|\n|\r|[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ]+(?:['’\-][A-Za-zÀ-ÖØ-öø-ÿĀ-ſ]+)*|[0-9]+|[^\s]/gu)].map(m=>m[0]).filter(part=>part==="\n"||part==="\r"||part==="\r\n"||!/^\s+$/u.test(part));
+  const oldWords = plainTokens();
+  const oldBySurface = new Map();
+  oldWords.forEach(t => {
+    const key=t.text.toLocaleLowerCase();
+    if(!oldBySurface.has(key)) oldBySurface.set(key, []);
+    oldBySurface.get(key).push(t);
+  });
+  const used = new Set();
+  let nextId = Math.max(0,...oldWords.map(t=>Number((t.id.match(/\d+/)||[])[0])||0))+1;
+  const tokens = parts.map(part => {
+    if(part==="\n"||part==="\r"||part==="\r\n") return {id:"lb"+(nextId++),text:"",lineBreak:true};
+    if(/^[A-Za-zÀ-ÖØ-öø-ÿĀ-ſ0-9]/u.test(part)) {
+      const key=part.toLocaleLowerCase();
+      const previous=(oldBySurface.get(key)||[]).find(t=>!used.has(t.id));
+      if(previous) { used.add(previous.id); return {...previous,text:part}; }
+      return {id:"w"+(nextId++),text:part,punctuation:false,lemma:"",pos:"",func:"",case:"",number:"",gender:"",tense:"",mood:"",voice:"",person:"",head:"",relation:"",notes:""};
+    }
+    return {id:"p"+(nextId++),text:part,punctuation:true};
+  });
+  const validIds=new Set(tokens.filter(t=>!t.punctuation).map(t=>t.id));
+  doc.tokens=tokens;
+  doc.deps=doc.deps.filter(d=>validIds.has(d.dependent)&&(!d.head||validIds.has(d.head)));
+  doc.spans=doc.spans.map(sp=>({...sp,targets:sp.targets.filter(id=>validIds.has(id))})).filter(sp=>sp.targets.length);
+  selectedId=plainTokens()[0]?.id||null; selectedDep=null; selectedSpan=null;
+  $("filename").textContent="untitled.xml";
+  updateXml();render();fillWord();showQuickInfo();
+  setStatus("Text tokenized. Annotate words and add dependencies.");
+}
+$("tokenizeBtn").onclick=()=>{
+  const text=$("latinInput").value.trim();
+  if(!text){setStatus("Enter or paste some Latin first");return;}
+  if(doc.tokens.some(t=>!t.punctuation&&(t.lemma||t.pos||t.case||t.head))&&!confirm("Retokenizing can remove annotations for words no longer present. Continue?"))return;
+  tokenizeLatin(text);
+};
+
+$("openBtn").onclick=()=>$("fileInput").click();
+$("fileInput").onchange=async e=>{const f=e.target.files[0];if(!f)return;$("filename").textContent=f.name;$("xml").value=await f.text();loadXml();};
+$("copyXml").onclick=async()=>{try{await navigator.clipboard.writeText($("xml").value);setStatus("XML copied");}catch{setStatus("Clipboard unavailable; select and copy the XML manually");}};
+$("newBtn").onclick=()=>{if(!confirm("Start a new empty document? Export your current work first if needed."))return;doc={tokens:[{id:"w1",text:"",punctuation:false}],deps:[],spans:[],sentenceId:"s1"};selectedId="w1";$("filename").textContent="untitled.xml";updateXml();render();fillWord();showQuickInfo();setStatus("New document");};
+$("applyWord").onclick=applyWord;
+$("clearWord").onclick=()=>{const t=selectedToken();if(!t)return;["lemma","pos","func","case","number","gender","tense","mood","voice","person","head","relation","notes"].forEach(k=>t[k]="");doc.deps=doc.deps.filter(d=>d.dependent!==t.id);updateXml();render();fillWord();showQuickInfo();setStatus("Metadata cleared");};
+$("tokenPick").onchange=()=>{selectedId=$("tokenPick").value;selectedDep=null;fillWord();render();showQuickInfo();};
+$("newDep").onclick=()=>{editingDep=null;selectedDep=null;showDepEditor({dependent:selectedId||plainTokens()[0]?.id});};
+$("applyDep").onclick=applyDep;$("cancelDep").onclick=()=>{editingDep=null;$("depEditor").classList.add("hidden");$("wordEditor").classList.remove("hidden");};
+$("deleteDep").onclick=()=>{if(selectedDep===null)return;const d=doc.deps[selectedDep];doc.deps.splice(selectedDep,1);const t=tokenById(d.dependent);if(t){t.head="";t.relation="";}selectedDep=null;editingDep=null;updateXml();render();fillWord();showQuickInfo();setStatus("Dependency deleted");};
+$("addSpan").onclick=()=>{editingSpan=null;selectedSpan=null;showSpanEditor({targets:selectedId?[selectedId]:[]});};
+$("applySpan").onclick=applySpan;$("cancelSpan").onclick=()=>{$("spanEditor").classList.add("hidden");$("wordEditor").classList.remove("hidden");};
+$("deleteSpan").onclick=()=>{if(!selectedSpan){setStatus("Select a construction with Edit first");return;}doc.spans=doc.spans.filter(s=>s.id!==selectedSpan);selectedSpan=null;updateXml();render();showQuickInfo();setStatus("Construction deleted");};
+["showArcs","showTags","showSpans"].forEach(id=>$(id).onchange=()=>render());
+$("studyMode").onchange=()=>{revealed=false;$("studyAnswer").classList.toggle("hidden",!$("studyMode").checked);render();if($("studyMode").checked){$("studyAnswer").textContent="Answers hidden. Select a word and press “Show selected word’s answers” to reveal its annotations."; } };
+$("reveal").onclick=()=>{const t=selectedToken();if(!t)return;const box=$("studyAnswer");box.classList.remove("hidden");box.textContent=`${t.text} — lemma: ${t.lemma||"—"}; POS: ${t.pos||"—"}; case: ${t.case||"—"}; number: ${t.number||"—"}; gender: ${t.gender||"—"}; function: ${t.func||"—"}`;revealed=true;};
+const relationReference = [
+  ["root","Main predicate / root of the sentence","The main finite verb"],
+  ["nsubj","Nominal subject","puella → venit"],
+  ["csubj","Clausal subject","An infinitive or clause acting as subject"],
+  ["obj","Direct object","urbem → videt"],
+  ["iobj","Indirect object","A recipient or other indirect object"],
+  ["obl","Oblique nominal / adverbial","A noun phrase used adverbially"],
+  ["vocative","Direct address","Marce!"],
+  ["expl","Expletive","A placeholder-like grammatical element; uncommon in Latin"],
+  ["amod","Adjectival modifier","magna → urbs"],
+  ["nmod","Nominal modifier","viri → filius in filius viri"],
+  ["nmod:poss","Possessive nominal modifier","A genitive expressing possession"],
+  ["advmod","Adverbial modifier","celeriter → currit"],
+  ["acl","Clausal modifier of a noun","A participial or other clause modifying a noun"],
+  ["acl:relcl","Relative clause modifier","qui venit → vir"],
+  ["det","Determiner","A demonstrative modifying a noun"],
+  ["nummod","Numeral modifier","tres → milites"],
+  ["appos","Apposition","Cicero, consul"],
+  ["compound","Compound element","A component of a lexical compound"],
+  ["flat","Fixed name / expression component","A component of a multiword name"],
+  ["ccomp","Clausal complement","An embedded clause functioning as a complement"],
+  ["xcomp","Open clausal complement","An infinitive with a subject understood from elsewhere"],
+  ["advcl","Adverbial clause modifier","A temporal, causal, or purpose clause"],
+  ["mark","Clause marker / subordinator","ut, cum, quod introducing a clause"],
+  ["conj","Coordinated conjunct","The second member of a coordination"],
+  ["cc","Coordinating conjunction","et, aut, sed"],
+  ["parataxis","Loosely connected clause","A parenthetical or independent addition"],
+  ["cop","Copula","est in a copular construction"],
+  ["aux","Auxiliary","An auxiliary verb"],
+  ["punct","Punctuation","Comma, colon, or period"],
+  ["case","Case-marking element","A preposition such as in"],
+  ["fixed","Fixed multiword expression","A component of a fixed expression"],
+  ["discourse","Discourse element","A discourse particle or marker"],
+  ["dep","Unspecified dependency","Use temporarily when a more precise label is not yet known"],
+  ["obl:agent","Agent in a passive construction","An agent phrase, often introduced by ab/ā"],
+  ["obl:abs","Ablative-absolute internal relation (custom)","Optional project-specific label; use a construction span too"]
+];
+function renderRelationReference(){
+  const q=($("relationSearch")?.value||"").trim().toLowerCase();
+  $("relationRows").innerHTML=relationReference
+    .filter(([label,meaning,example])=>(label+" "+meaning+" "+(example||"")).toLowerCase().includes(q))
+    .map(([label,meaning,example])=>`<tr title="Click to copy label"><td><code>${esc(label)}</code><br><button type="button" data-relation="${esc(label)}">Use</button></td><td>${esc(meaning)}${example?`<br><span class="muted">${esc(example)}</span>`:""}</td></tr>`).join("");
+  $("relationRows").querySelectorAll("[data-relation]").forEach(btn=>btn.onclick=()=>{
+    $("relation").value=btn.dataset.relation;
+    $("depRelation").value=btn.dataset.relation;
+    setStatus("Relation label selected: "+btn.dataset.relation);
+  });
+}
+$("relationSearch").addEventListener("input",renderRelationReference);
+renderRelationReference();
+
+window.addEventListener("resize",()=>requestAnimationFrame(drawArcs));
+try {
+  const saved=localStorage.getItem("latinAnnotatorXml");
+  if(saved) {
+    $("xml").value=saved;
+    $("filename").textContent=localStorage.getItem("latinAnnotatorFilename")||"autosaved.xml";
+  } else $("xml").value=sample;
+} catch(e) { $("xml").value=sample; }
+loadXml();
+$("latinInput").value=textFromTokens();
+</script>
+</body>
+</html>
